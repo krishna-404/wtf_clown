@@ -47,11 +47,11 @@ function Disconnect() {
 }
 
 app.get('/', function (req, res) {
-  res.sendFile(path.join(__dirname+'/views/login.html'));
+  res.sendFile(path.join(__dirname+'/public/login.html'));
 });
 
 app.get('/video', function (req, res) {
-  res.sendFile(path.join(__dirname+'/views/video.html'));
+  res.sendFile(path.join(__dirname+'/public/video.html'));
 });
 
 http.listen(port, () => console.log('Running on port '));
