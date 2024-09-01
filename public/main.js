@@ -8,15 +8,80 @@ const socket = io();
 const video = document.querySelector('video');
 var client = {};
 
-// Get stream from the client, it returns a Future
+// Add these variables at the top of the file
+let isLaughing = false;
+let faceDetectionInterval;
+
+// Add this function to load face-api.js models
+async function loadFaceDetectionModels() {
+    await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+}
+
+// Add this function to detect faces and trigger confetti
+async function detectFaces() {
+    if (!video) return;
+
+    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceExpressions();
+
+    const isAnyoneLaughing = detections.some(detection => detection.expressions.happy > 0.7);
+
+    if (isAnyoneLaughing && !isLaughing) {
+        isLaughing = true;
+        showLaughMessage();
+        triggerConfetti();
+        setTimeout(() => {
+            hideLaughMessage();
+            isLaughing = false;
+        }, 3000);
+    }
+}
+
+function showLaughMessage() {
+    const laughMessage = document.createElement('div');
+    laughMessage.id = 'laughMessage';
+    laughMessage.textContent = 'Hello Grumpy Clown!!!';
+    laughMessage.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0,0,0,0.7);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        font-size: 24px;
+        z-index: 1000;
+    `;
+    document.body.appendChild(laughMessage);
+}
+
+function hideLaughMessage() {
+    const laughMessage = document.getElementById('laughMessage');
+    if (laughMessage) laughMessage.remove();
+}
+
+function triggerConfetti() {
+    confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+    });
+}
+
+// Modify the existing navigator.mediaDevices.getUserMedia() call
 navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    // 'then' is a future function that runs when the above part is executed correctly
-    .then(stream => {
+    .then(async stream => {
         // Sending the request to the server
         socket.emit('NewClient');
         // Stream of the client itself
         video.srcObject = stream;
         video.play();
+
+        // Add these lines after setting up the video stream
+        await loadFaceDetectionModels();
+        faceDetectionInterval = setInterval(detectFaces, 1000);
 
         function constructor(type) {
             // Initalizing the Peer
@@ -43,6 +108,7 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: true })
                 document.getElementById('peerVideo').remove();
                 // Cleaning up
                 peer.destroy();
+                cleanup();
             })
             // Finally returning the Peer
             return peer
@@ -101,3 +167,14 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: true })
     // Something went wrong
     // This is another Future function, which runs if some error occurs
     .catch(err => document.write(err));
+
+// Add this to the cleanup logic (e.g., in the peer.on('close') callback)
+function cleanup() {
+    // Existing cleanup code...
+
+    if (faceDetectionInterval) {
+        clearInterval(faceDetectionInterval);
+    }
+}
+
+// Make sure to call cleanup() when appropriate, e.g., when the peer connection closes
